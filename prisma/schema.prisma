@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Browser {
+  CHROME
+  FIREFOX
+  SAFARI
+  EDGE
+  OPERA
+  IE
+  OTHER
+}
+
+enum Device {
+  MOBILE
+  TABLET
+  DESKTOP
+  OTHER
+}
+
+enum OS {
+  WINDOWS
+  MACOS
+  LINUX
+  ANDROID
+  IOS
+  OTHER
+}
+
+model ShortLink {
+  id          String   @id @default(cuid())
+  originalUrl String
+  shortCode   String   @unique
+  visits      Visit[]
+  visitTimes  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updateAt    DateTime @updatedAt()
+}
+
+model Visit {
+  id          String    @id @default(uuid())
+  shortLink   ShortLink @relation(fields: [shortLinkId], references: [id])
+  shortLinkId String
+  timestamp   DateTime  @default(now())
+  ip          String?
+  province    String?
+  city        String?
+  district    String?
+  locationLng Float?
+  locationLat Float?
+  browser     Browser?
+  device      Device?
+  os          OS?
+}
+
+model UniqueShortCode {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  isEnabled Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updateAt  DateTime @updatedAt()
+}
