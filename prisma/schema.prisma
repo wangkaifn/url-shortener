@@ -13,40 +13,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Browser {
-  CHROME
-  FIREFOX
-  SAFARI
-  EDGE
-  OPERA
-  IE
-  OTHER
-}
-
-enum Device {
-  MOBILE
-  TABLET
-  DESKTOP
-  OTHER
-}
-
-enum OS {
-  WINDOWS
-  MACOS
-  LINUX
-  ANDROID
-  IOS
-  OTHER
-}
-
 model ShortLink {
   id          String   @id @default(cuid())
+  title       String?
   originalUrl String
   shortCode   String   @unique
+  shortLink   String
   visits      Visit[]
   visitTimes  Int      @default(0)
   createdAt   DateTime @default(now())
   updateAt    DateTime @updatedAt()
+  desc        String?
 }
 
 model Visit {
@@ -60,9 +37,9 @@ model Visit {
   district    String?
   locationLng Float?
   locationLat Float?
-  browser     Browser?
-  device      Device?
-  os          OS?
+  browser     String?
+  device      String?
+  os          String?
 }
 
 model UniqueShortCode {

@@ -23,7 +23,11 @@ services:
       - .env
     volumes:
       - postgres:/var/lib/postgresql/data
-
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
 volumes:
   postgres:
     name: nest-prisma-url-shortener-docker-db

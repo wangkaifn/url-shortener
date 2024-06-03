@@ -15,68 +15,35 @@ import { CreateShortLinkDto } from './dto/create-short-link.dto';
 import { PrismaService } from 'nestjs-prisma';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import * as useragent from 'express-useragent';
 import { IpQueryService } from 'src/ip-query/ip-query.service';
+import { getUseragentInfo } from 'src/utils';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('短链')
 @Controller('short-link')
 export class ShortLinkController {
   constructor(
     private readonly shortLinkService: ShortLinkService,
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     private readonly ipQueryService: IpQueryService,
   ) {}
 
+  @ApiOperation({
+    summary: '生成短链',
+    description: '生成短链',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: '短链生成成功',
+    type: String,
+  })
+  @ApiBody({
+    type: CreateShortLinkDto,
+  })
   @Post()
   @UsePipes(new ValidationPipe({ transform: true }))
   async create(@Body() createShortLinkDto: CreateShortLinkDto) {
-    // 找到没有被使用的短链码
-    const shortCode = await this.prisma.uniqueShortCode.findFirst({
-      where: {
-        isEnabled: false,
-      },
-    });
-    const BASE_URL = this.configService.get('BASE_URL');
-    if (!shortCode) {
-      const newShortCode = await this.shortLinkService.createUniqueShortCode();
-      await this.prisma.uniqueShortCode.create({
-        data: {
-          code: newShortCode,
-          isEnabled: true,
-        },
-      });
-
-      await this.prisma.shortLink.create({
-        data: {
-          originalUrl: createShortLinkDto.originalUrl,
-          shortCode: newShortCode,
-        },
-      });
-      return {
-        message: '短链接生成成功',
-        data: `${BASE_URL}/short-link/${newShortCode}`,
-      };
-    }
-    // 更新短链码状态
-    await this.prisma.uniqueShortCode.update({
-      where: {
-        code: shortCode.code,
-      },
-      data: {
-        isEnabled: true,
-      },
-    });
-    await this.prisma.shortLink.create({
-      data: {
-        originalUrl: createShortLinkDto.originalUrl,
-        shortCode: shortCode.code,
-      },
-    });
-
-    return {
-      message: '短链接生成成功',
-      data: `${BASE_URL}/short-link/${shortCode.code}`,
-    };
+    return await this.shortLinkService.createShortLink(createShortLinkDto);
   }
 
   /**
@@ -84,14 +51,23 @@ export class ShortLinkController {
    * @param shortCode 短链
    * @returns 访问记录
   //  */
-  // @Get('/accessLinkRecord')
-  // async accessLinkRecord() {
-  //   return await this.prisma.shortLink.findMany({
-  //     include: {
-  //       visits: true,
-  //     },
-  //   });
-  // }
+  @Get('/accessLinkRecord')
+  async accessLinkRecord() {
+    return await this.prisma.shortLink.findMany({
+      include: {
+        visits: true,
+      },
+    });
+  }
+
+  /**
+   *  查询所有短链
+   * @returns 所有短链
+   */
+  @Get('/getAllShortLink')
+  async AllShortLink() {
+    return this.prisma.shortLink.findMany();
+  }
 
   /**
    * 通过短链获取原始链接
@@ -109,34 +85,13 @@ export class ShortLinkController {
       request.ip ||
       request.headers['x-forwarded-for'] ||
       request.connection.remoteAddress;
-    const ipInfo = await this.ipQueryService.getIpInfo(ipAddress as string);
-    const userAgent = request.headers['user-agent'] || 'unknown';
 
-    const ua = useragent.parse(userAgent);
+    const ipInfo =
+      {} || (await this.ipQueryService.getIpInfo(ipAddress as string));
 
-    const browserMap = {
-      Chrome: 'CHROME',
-      Firefox: 'FIREFOX',
-      Safari: 'SAFARI',
-      Edge: 'EDGE',
-      Opera: 'OPERA',
-      IE: 'IE',
-    };
+    const userAgent = request.headers['user-agent'];
 
-    // const deviceMap = {
-    //   true: 'MOBILE',
-    //   false: 'DESKTOP',
-    // };
-
-    const osMap = {
-      Windows: 'WINDOWS',
-      'Apple Mac': 'MACOS',
-      Linux: 'LINUX',
-      Android: 'ANDROID',
-      iOS: 'IOS',
-    };
-
-    console.log(ipAddress, useragent.parse(userAgent), ipInfo);
+    const ua = getUseragentInfo(userAgent);
 
     const originalUrl = await this.prisma.shortLink.findFirst({
       where: {
@@ -162,31 +117,16 @@ export class ShortLinkController {
 
     // 更新记录访问
 
-    const browser = browserMap[ua.browser] || 'OTHER';
-    const device = ua.isMobile ? 'MOBILE' : ua.isTablet ? 'TABLET' : 'DESKTOP';
-    const os = osMap[ua.platform] || 'OTHER';
     await this.prisma.visit.create({
       data: {
         shortLinkId: originalUrl.id,
         ...ipInfo.data,
-        browser,
-        device,
-        os,
+        ...ua,
       },
     });
-
     return {
       url: originalUrl.originalUrl,
       statusCode: HttpStatus.FOUND,
     };
-  }
-
-  /**
-   *  短链
-   * @returns 所有的短链
-   */
-  @Get('/allShortCodes')
-  async batchGenerateShortCode() {
-    return this.prisma.uniqueShortCode.findMany();
   }
 }
